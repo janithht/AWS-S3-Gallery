@@ -1,4 +1,5 @@
 const express = require('express')
+const mongoose = require('mongoose')
 const AwsClient = require('./awsClient')
 const multer = require('multer')          //middleware used for filed uploads
 const AWS3 = require('@aws-sdk/client-s3')
@@ -6,11 +7,31 @@ const { ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } = require(
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');    //function that generates a presigned URL
 require('dotenv').config()
 
-const upload = multer({})
-const app = express()     //object to define middleware and routes
+const upload = multer({});
+const app = express();
+
+app.use(express.json());
+
+// Connect to MongoDB
+mongoose.connect('mongodb+srv://ekanayakaym20:2ilctvjCgYFhYP2W@cluster0.vyyy7ro.mongodb.net/Childish-Backend?retryWrites=true&w=majority', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+mongoose.connection.on('error', console.error.bind(console, 'MongoDB connection error:'));
+
+// Create a Comment schema
+const commentSchema = new mongoose.Schema({
+  content: String,
+  createdAt: { type: Date, default: Date.now }
+});
+
+// Create a Comment model
+const Comment = mongoose.model('Comment', commentSchema);
+
+
+
 
 const folderKeys = ['single/', 'multiple/'];
-
 
 app.post('/v3/post/single', upload.single('file'),async(req, res)=>{
     try{
@@ -72,6 +93,40 @@ app.get('/images', async (req, res) => {
     res.status(500).send('Error retrieving images from S3 bucket');
   }
 });
+
+// API endpoint to save a new comment
+app.post('/comments', async (req, res) => {
+  try {
+    const { content } = req.body;
+
+    // Create a new comment
+    const comment = new Comment({
+      content,
+      createdAt: new Date()
+    });
+
+    // Save the comment to the database
+    await comment.save();
+
+    res.status(201).json({ message: 'Comment saved successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'An error occurred' });
+  }
+});
+
+app.get('/comments', async (req, res) => {
+  try {
+    // Retrieve all comments from the database
+    const comments = await Comment.find();
+    res.json(comments);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
 
 
 // Start the server 
